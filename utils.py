@@ -17,17 +17,13 @@ from typing import Optional, Union
 # ─────────────────────────────────────────────
 
 WEATHER_CONDITIONS = ["fog", "rain", "snow", "sand"]
-CLASS_NAMES = ["car", "bus", "truck", "motorcycle", "bicycle", "pedestrian", "cyclist"]
-# YOLO class-index → human-readable name (DAWN mapping)
-YOLO_CLASS_MAP = {
-    0: "car",
-    1: "bus",
-    2: "truck",
-    3: "motorcycle",
-    4: "bicycle",
-    5: "pedestrian",
-    6: "cyclist",
-}
+
+# Class names in 0-based index order, matching remapped YOLO label files.
+# Labels have been remapped from original DAWN indices [1,2,3,4,6,7,8] → [0,1,2,3,4,5].
+# CLASS_NAMES = ["car", "bus", "truck", "motorcycle", "bicycle", "pedestrian", "cyclist"]
+CLASS_NAMES = ["pedestrian", "bicycle", "car", "motorcycle", "bus", "truck"]
+LABEL_LIST  = CLASS_NAMES   # alias used by confusion matrix / visualisation helpers
+NUM_CLASSES = len(CLASS_NAMES)  # 6
 
 
 def get_dataset():
@@ -224,22 +220,23 @@ def split_dataset(
 def write_yolo_yaml(
     split_root: str,
     frac_key: str,
-    num_classes: int = 7,
+    num_classes: int = NUM_CLASSES,
     output_path: Optional[str] = None,
 ) -> str:
     """Write a YOLO data.yaml for a given fraction split."""
+    import yaml as _yaml
     base = os.path.join(split_root, frac_key)
-    yaml_content = (
-        f"path: {os.path.abspath(base)}\n"
-        f"train: train/images\n"
-        f"val:   val/images\n"
-        f"test:  test/images\n\n"
-        f"nc: {num_classes}\n"
-        f"names: {CLASS_NAMES}\n"
-    )
+    data = {
+        "path":  os.path.abspath(base),
+        "train": "train/images",
+        "val":   "val/images",
+        "test":  "test/images",
+        "nc":    num_classes,
+        "names": CLASS_NAMES,
+    }
     output_path = output_path or os.path.join(base, "data.yaml")
     with open(output_path, "w") as f:
-        f.write(yaml_content)
+        _yaml.dump(data, f, default_flow_style=False, sort_keys=True)
     print(f"YAML written to {output_path}")
     return output_path
 
@@ -499,13 +496,12 @@ def plot_confusion_matrix(
 
     Parameters
     ----------
-    y_true : list[int]  Ground-truth class indices.
-    y_pred : list[int]  Predicted class indices.
-    class_names : list  Human-readable class names (uses YOLO_CLASS_MAP if None).
+    y_true : list[int]  Ground-truth class indices (0-based after label remap).
+    y_pred : list[int]  Predicted class indices (0-based).
+    class_names : list  Human-readable names. Defaults to CLASS_NAMES.
     normalize : bool    Show row-normalised percentages when True.
     """
-    from collections import Counter
-    class_names = class_names or list(YOLO_CLASS_MAP.values())
+    class_names = class_names or CLASS_NAMES
     n = len(class_names)
     cm = np.zeros((n, n), dtype=int)
     for t, p in zip(y_true, y_pred):
@@ -574,7 +570,10 @@ def visualize_misclassifications(
     except ImportError:
         raise ImportError("Install Pillow: pip install Pillow")
 
-    class_names = class_names or list(YOLO_CLASS_MAP.values())
+    class_names = class_names or CLASS_NAMES
+
+    def _safe_name(idx):
+        return class_names[idx] if 0 <= idx < len(class_names) else str(idx)
 
     errors = [(p, t, pr) for p, t, pr in zip(image_paths, true_labels, pred_labels) if t != pr]
     if not errors:
@@ -588,11 +587,6 @@ def visualize_misclassifications(
     fig, axes = plt.subplots(rows, cols, figsize=(cols * 4, rows * 4))
     fig.suptitle(f"Misclassified Images — {model_name}", fontsize=14, fontweight="bold")
     axes = np.array(axes).flatten()
-
-    def _safe_name(idx):
-        if 0 <= idx < len(class_names):
-            return class_names[idx]
-        return str(idx)
 
     for ax, (img_path, true_cls, pred_cls) in zip(axes, sample):
         try:
@@ -748,7 +742,11 @@ def visualize_annotations(
     except ImportError:
         raise ImportError("Install Pillow: pip install Pillow")
 
-    class_names = class_names or list(YOLO_CLASS_MAP.values())
+    class_names = class_names or CLASS_NAMES
+
+    def _name(cls_id):
+        return class_names[cls_id] if 0 <= cls_id < len(class_names) else str(cls_id)
+
     img = PILImage.open(image_path).convert("RGB")
     W, H = img.size
 
@@ -771,7 +769,7 @@ def visualize_annotations(
                 rect = patches.Rectangle((x1, y1), bw, bh, linewidth=2,
                                          edgecolor="#4CAF50", facecolor="none")
                 ax.add_patch(rect)
-                name = class_names[cls_id] if cls_id < len(class_names) else str(cls_id)
+                name = _name(cls_id)
                 ax.text(x1, y1 - 3, name, color="white", fontsize=8,
                         bbox=dict(facecolor="#4CAF50", alpha=0.8, pad=1))
 
@@ -782,7 +780,7 @@ def visualize_annotations(
             rect = patches.Rectangle((x1, y1), bw, bh, linewidth=2,
                                      edgecolor="#F44336", facecolor="none", linestyle="--")
             ax.add_patch(rect)
-            name = class_names[cls_id] if cls_id < len(class_names) else str(cls_id)
+            name = _name(cls_id)
             label = f"{name} {conf:.2f}" if conf else name
             ax.text(x1, y1 + bh + 12, label, color="white", fontsize=8,
                     bbox=dict(facecolor="#F44336", alpha=0.8, pad=1))
