@@ -1,0 +1,6 @@
+Model,Data Fraction,Precision,Recall,mAP@0.5,mAP@0.5:0.95
+YOLOv5s (baseline),100pct,0.909,0.835,0.893,0.651
+YOLOv12s,25pct,0.901,0.739,0.843,0.6
+YOLOv12s,50pct,0.913,0.787,0.867,0.63
+YOLOv12s,75pct,0.926,0.816,0.886,0.658
+YOLOv12s,100pct,0.932,0.831,0.891,0.661
