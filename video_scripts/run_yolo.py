@@ -40,6 +40,7 @@ import argparse
 import json
 import os
 import sys
+import time
 from pathlib import Path
 
 import cv2
@@ -53,23 +54,21 @@ from ultralytics import YOLO
 # Edit to match your dataset's CLASS_NAMES order.
 # ─────────────────────────────────────────────────────────────────────────────
 CLASS_NAMES = [
-    "car",          # 0
-    "bus",          # 1
-    "truck",        # 2
+    "pedestrian",   # 0
+    "bicycle",      # 1
+    "car",          # 2
     "motorcycle",   # 3
-    "bicycle",      # 4
-    "pedestrian",   # 5
-    "cyclist",      # 6
+    "bus",          # 4
+    "truck",        # 5
 ]
 
 CLASS_COLOURS = {
+    "pedestrian":  (255, 109,   0),   # orange
+    "bicycle":     (234, 128, 252),   # purple
     "car":         (255,  82,  82),   # red
+    "motorcycle":  (255, 215,  64),   # amber
     "bus":         ( 68, 138, 255),   # blue
     "truck":       (105, 240, 174),   # green
-    "motorcycle":  (255, 215,  64),   # amber
-    "bicycle":     (234, 128, 252),   # purple
-    "pedestrian":  (255, 109,   0),   # orange
-    "cyclist":     ( 24, 255, 255),   # cyan
 }
 
 # Fallback colour for any class not in the map above
@@ -220,6 +219,9 @@ def run_inference(
     print(f"Overlay resolution: original frame size (YOLO boxes remapped automatically)\n")
 
     detection_counts = {}   # frame_stem → {class: count}
+    frame_times      = []   # per-frame inference time in seconds
+
+    t_total_start = time.perf_counter()
 
     for i, fname in enumerate(frame_files):
         stem     = Path(fname).stem          # e.g. "000042"
@@ -233,6 +235,7 @@ def run_inference(
         h, w = img_cv.shape[:2]
 
         # ── Inference ────────────────────────────────────────────────────────
+        t_frame_start = time.perf_counter()
         results = model(
             img_path,
             conf=conf,
@@ -241,6 +244,7 @@ def run_inference(
             device=device,
             verbose=False,
         )[0]
+        frame_times.append(time.perf_counter() - t_frame_start)
 
         # ── Parse detections ─────────────────────────────────────────────────
         detections = []   # list of (x1, y1, x2, y2, class_name, conf_score)
@@ -283,7 +287,30 @@ def run_inference(
             cls_img.save(os.path.join(class_dirs[cname], f"{stem}.png"))
 
         if (i + 1) % 50 == 0 or (i + 1) == len(frame_files):
-            print(f"  Processed {i + 1}/{len(frame_files)} frames")
+            elapsed = time.perf_counter() - t_total_start
+            avg_ms  = (sum(frame_times) / len(frame_times)) * 1000
+            print(f"  Processed {i + 1}/{len(frame_files)} frames  "
+                  f"| elapsed {elapsed:.1f}s  | avg inference {avg_ms:.1f} ms/frame")
+
+    t_total_elapsed = time.perf_counter() - t_total_start
+
+    # ── Timing summary ────────────────────────────────────────────────────────
+    n               = len(frame_times)
+    avg_ms          = (sum(frame_times) / n) * 1000       if n else 0
+    min_ms          = min(frame_times) * 1000              if n else 0
+    max_ms          = max(frame_times) * 1000              if n else 0
+    throughput_fps  = n / t_total_elapsed                  if t_total_elapsed > 0 else 0
+
+    print(f"\n{'─' * 50}")
+    print(f"  Inference timing")
+    print(f"{'─' * 50}")
+    print(f"  Total frames     : {n}")
+    print(f"  Total time       : {t_total_elapsed:.2f} s  ({t_total_elapsed / 60:.2f} min)")
+    print(f"  Throughput       : {throughput_fps:.2f} frames/sec")
+    print(f"  Avg per frame    : {avg_ms:.1f} ms")
+    print(f"  Min per frame    : {min_ms:.1f} ms")
+    print(f"  Max per frame    : {max_ms:.1f} ms")
+    print(f"{'─' * 50}\n")
 
     # ── Write detection summary ───────────────────────────────────────────────
     summary = {
@@ -293,9 +320,18 @@ def run_inference(
         "conf_threshold":   conf,
         "iou_threshold":    iou,
         "img_size":         img_size,
+        "device":           device,
         "class_names":      class_names,
         "class_colours":    {k: list(v) for k, v in CLASS_COLOURS.items()},
         "total_frames":     len(frame_files),
+        "timing": {
+            "total_seconds":     round(t_total_elapsed, 3),
+            "total_minutes":     round(t_total_elapsed / 60, 3),
+            "throughput_fps":    round(throughput_fps, 3),
+            "avg_ms_per_frame":  round(avg_ms, 3),
+            "min_ms_per_frame":  round(min_ms, 3),
+            "max_ms_per_frame":  round(max_ms, 3),
+        },
         "detection_counts": detection_counts,
     }
     summary_path = os.path.join(output_dir, "summary.json")
