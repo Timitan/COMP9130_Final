@@ -1,1 +1,39 @@
+# Core ML & Deep Learning
+torch
+torchvision
+
+# HuggingFace Transformers (RT-DETR / RT-DETRv2)
+transformers>=4.45.0
+
+# YOLO (v5s and v12s)
+ultralytics
+
+# Computer Vision
+opencv-python
+Pillow
+
+# Data & Scientific Computing
+numpy
+pandas
+scipy
+
+# Dataset Download
 kagglehub
+
+# Machine Learning Utilities
+scikit-learn
+
+# Visualization
+matplotlib
+seaborn
+
+# Progress Bars
+tqdm
+
+# Detectron2 (Cascade R-CNN)
+# Install separately — build instructions: https://detectron2.readthedocs.io/en/latest/tutorials/install.html
+# detectron2
+
+# Notebook Support
+jupyter
+ipywidgets
