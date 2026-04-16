@@ -98,7 +98,7 @@ For Detectron2 (Cascade R-CNN), follow the [official installation guide](https:/
 | Author | Contributions |
 |--------|--------------|
 | **Michael Persson** | Dataset cleaning and label adjustment, RT-DETR and RT-DETRv2 training pipeline, RT-DETR robustness evaluation, RT-DETR weatherwise breakdown, video inference for RT-DETRv2 |
-| **Brendan Zapf** |  |
+| **Brendan Zapf** | Dataset download and data folder management, Cascade R-CNN training pipeline, Cascade R-CNN evaluation, Cascade R-CNN video inference |
 | **Timothy Tan** | Dataset annotation remapping, YOLOv12s and YOLOv5s training pipeline, confusion matrix analysis, per-class and per-weather breakdown, video inference utilities for YOLO models(`run_yolo.py`, `compose_video.py`) |
 
 All authors contributed to the paper writing, experimental design, and results interpretation.
